@@ -1,0 +1,8 @@
+name: agent-os
+agent_directory: app
+create_params:
+  agent: adk
+  deployment_target: cloud_run
+  session_type: in_memory
+  region: us-central1
+  cicd_runner: github_actions

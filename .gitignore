@@ -1,0 +1,13 @@
+output/
+tmp/
+agent-os/private/
+agent-os/.env
+agent-os/.env.*
+!agent-os/.env.example
+agent-os/.venv/
+agent-os/__pycache__/
+agent-os/.pytest_cache/
+agent-os/*.egg-info/
+*.pyc
+*.log
+.DS_Store
