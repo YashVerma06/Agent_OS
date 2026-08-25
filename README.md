@@ -19,6 +19,6 @@ Google Cloud model access must use IAM and Application Default Credentials local
 - Project: `agent-os-506306`
 - Region: `us-central1`
 - Operator: `arpitmishrapy@gmail.com`
-- Repository: <https://github.com/arpitmisra/AgentOS>
+- Repository: <https://github.com/YashVerma06/Agent_OS>
 
 If a setup step fails, return the exact error message with all secrets and account identifiers redacted.
