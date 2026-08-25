@@ -1,24 +1,36 @@
-# Agent OS — Google Cloud Handoff
+# Agent OS
 
-This folder contains the Google Cloud setup guide for the Agent OS hackathon MVP.
+Agent OS is infrastructure for creating and operating governed AI workforces. The five-day hackathon MVP demonstrates a software-delivery workforce that turns a client discovery conversation into an approved specification, implementation plan, real code change, independent review, revision loop, and human-controlled staging release.
 
-## For the Google Cloud administrator
+The active product is in [`agent-os/`](agent-os/).
 
-1. Open `Agent_OS_Google_Cloud_Admin_Handoff.docx`.
-2. Complete the IAM, API, service-identity, resource, billing-alert, and Calendar OAuth steps.
-3. Fill out the **Safe Return Package** in Section 10 and send only that completed section back to the Agent OS team.
+## Foundation branch
 
-## Important security rule
+`codex/arpit-foundation` is the integration branch for the initial architecture. Teammates should branch from it and open pull requests back into it until the foundation is merged to `main`.
 
-Do **not** send API keys, service-account JSON files, private keys, OAuth client secrets, refresh tokens, billing identifiers, coupon codes, GitHub tokens, or OpenAI keys.
+## Golden path
 
-Google Cloud model access must use IAM and Application Default Credentials locally, and managed service identities in production. Third-party secrets must be stored directly in Google Secret Manager.
+```text
+Client meeting
+-> Discovery & Specification Agent
+-> SPECIFICATIONS.md
+-> human approval
+-> Planner & Architect Agent
+-> Builder Agent
+-> Reviewer Agent detects seeded defect
+-> Builder repairs
+-> Reviewer passes
+-> human release approval
+-> staging outcome + complete audit trail
+```
 
-## Project details
+Google ADK and a qualifying Gemini model on Vertex AI provide agent reasoning. Deterministic workflow, policy, approval, artifact, and audit services control authority.
 
-- Project: `agent-os-506220`
-- Region: `us-central1`
-- Operator: `sv3981158@gmail.com`
-- Repository: <https://github.com/YashVerma06/Agent_OS>
+## Start here
 
-If a setup step fails, return the exact error message with all secrets and account identifiers redacted.
+1. Read [`agent-os/docs/PRODUCT_SCOPE.md`](agent-os/docs/PRODUCT_SCOPE.md).
+2. Read [`agent-os/docs/ARCHITECTURE.md`](agent-os/docs/ARCHITECTURE.md).
+3. Read [`agent-os/docs/TEAM_OWNERSHIP.md`](agent-os/docs/TEAM_OWNERSHIP.md).
+4. Follow [`agent-os/README.md`](agent-os/README.md) for local setup.
+
+Never commit API keys, OAuth secrets, refresh tokens, GitHub tokens, service-account keys, or billing details.
