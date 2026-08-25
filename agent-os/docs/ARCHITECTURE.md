@@ -7,6 +7,7 @@ Agent OS separates probabilistic reasoning from deterministic authority.
 ```text
 Web control room
   -> Control-plane API
+      -> Organization + workforce registry
       -> Workflow engine
       -> Policy/tool gateway
       -> Approval service
@@ -27,6 +28,7 @@ Web control room
 
 | Component | Responsibility | Five-day implementation |
 |---|---|---|
+| Organization/workforce registry | tenant metadata, template activation, approver and adapter boundaries | in-memory foundation behind stable tenant-scoped contracts |
 | Google ADK app | model-backed specialist definitions and delegation | one ADK app with five role definitions using `gemini-3.6-flash` |
 | Workflow engine | legal state transitions, idempotency, human gates | in-memory foundation behind stable interfaces; Firestore adapter next |
 | Policy engine | role/capability/state decisions | deny by default with auditable decision objects |
@@ -65,8 +67,12 @@ INTAKE
 
 ## Web control room foundation
 
-The hackathon interface is a single focused control-room route rather than a collection
-of disconnected dashboard pages. It presents one engagement as four linked surfaces:
+The application begins with a guided organization -> workforce -> engagement flow and
+then opens a focused control room. Onboarding collects non-secret operating boundaries;
+it never treats an entered owner email as authenticated identity or collects provider
+credentials.
+
+The control room presents one engagement as four linked surfaces:
 
 1. the current workforce role and deterministic workflow state;
 2. client discovery context and the artifact currently being produced;
@@ -77,6 +83,9 @@ The application lives in `web/`, uses React and TypeScript, and calls the FastAP
 control plane through a configurable `VITE_API_BASE_URL`. Client-side state may cache
 responses for rendering, but it is not authoritative for workflow transitions,
 approvals, permissions, or artifact versions.
+
+The canonical onboarding and enterprise operating flow is defined in
+`docs/ENTERPRISE_ONBOARDING.md`.
 
 ## Google Cloud target
 

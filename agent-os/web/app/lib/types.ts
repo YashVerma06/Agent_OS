@@ -20,11 +20,57 @@ export type WorkflowState =
   | 'STAGING_RELEASED'
   | 'REJECTED';
 
+export type MeetingMode = 'agent_os_room' | 'transcript_upload' | 'written_brief';
+
+export type CompanySize = '1-10' | '11-50' | '51-200' | '201-1000' | '1000+';
+
+export interface OrganizationProfile {
+  organization_id: string;
+  tenant_id: string;
+  display_name: string;
+  legal_name: string | null;
+  owner_name: string;
+  owner_email: string;
+  company_size: string;
+  identity_status: 'UNVERIFIED_FOUNDATION';
+  created_at: string;
+}
+
+export interface WorkforceTemplate {
+  template_id: string;
+  display_name: string;
+  description: string;
+  agent_roles: ActorRole[];
+  human_gates: string[];
+  version: number;
+}
+
+export interface ActivatedWorkforce {
+  workforce_id: string;
+  organization_id: string;
+  template_id: string;
+  display_name: string;
+  meeting_mode: MeetingMode;
+  repository_url: string;
+  base_branch: string;
+  working_branch_prefix: string;
+  specification_approver_email: string;
+  release_approver_email: string;
+  status: 'CONFIGURED';
+  integration_status: Record<string, string>;
+  created_at: string;
+}
+
 export interface WorkflowSnapshot {
   workflow_id: string;
   tenant_id: string;
   name: string;
   client_request: string;
+  organization_id: string | null;
+  workforce_id: string | null;
+  client_name: string | null;
+  client_contact_name: string | null;
+  client_contact_email: string | null;
   state: WorkflowState;
   version: number;
   reviewer_passed: boolean;
