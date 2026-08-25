@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.contracts import (
     ArtifactApprovalRequest,
@@ -31,6 +32,13 @@ api = FastAPI(
     description="Deterministic workflow, policy, artifact, and audit foundation.",
 )
 settings = get_settings()
+api.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.allowed_cors_origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Trace-Id"],
+)
 workflows = InMemoryWorkflowEngine()
 artifacts = InMemoryArtifactStore()
 policy = PolicyEngine()

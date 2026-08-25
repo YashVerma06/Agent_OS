@@ -1,13 +1,16 @@
-# Web Control Room Contract
+# Agent OS Control Room
 
-Member 2 owns the web application. Build for a 1440×900 demo recording and preserve these primary surfaces:
+The control room is the operator-facing React application for Agent OS. It reads
+workforce, workflow, artifact, policy, and audit state from the FastAPI control
+plane; it does not authorize actions in browser state.
 
-1. workforce status and current specialist;
-2. client meeting/transcript panel;
-3. workflow timeline with human gates;
-4. versioned artifact inspector with hashes;
-5. approval drawer that shows the exact immutable artifact;
-6. build/review evidence panel;
-7. visible policy denial and audit metadata.
+```powershell
+Copy-Item .env.example .env.local
+npm install
+npm run dev
+```
 
-Use the FastAPI contracts instead of inventing client-only workflow state. The UI must clearly label unavailable or simulated adapters.
+Start the API on `http://127.0.0.1:8080` first. The first implemented vertical
+slice runs from engagement creation through immutable specification approval and
+the Planner handoff. The remaining golden-path stages stay visible but are not
+presented as complete.

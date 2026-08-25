@@ -9,6 +9,7 @@ This directory contains the five-day MVP foundation for the governed software-de
 - deny-by-default capability policy engine;
 - immutable versioned artifact store;
 - FastAPI control-plane contracts;
+- professional React control room wired to those contracts;
 - unit tests for the security and workflow boundaries;
 - team ownership, architecture, and five-day delivery documents.
 
@@ -22,6 +23,19 @@ uv sync --extra dev
 uv run python -m pytest
 uv run uvicorn app.fast_api_app:api --reload --port 8080
 ```
+
+In a second terminal, start the control room:
+
+```powershell
+Set-Location web
+Copy-Item .env.example .env.local
+npm install
+npm run dev
+```
+
+Open `http://localhost:3000`. The current vertical slice creates a real workflow,
+records a transcript and discovery record, produces `SPECIFICATIONS.md`, stops for
+human approval of its exact hash, and then authorizes the Planner handoff.
 
 The deterministic tests do not call a model. Live ADK execution requires:
 
@@ -42,6 +56,7 @@ Do not add a Gemini API key. The selected path is Vertex AI with ADC locally and
 - `GET /v1/workflows/{workflow_id}/audit`
 - `POST /v1/workflows/{workflow_id}/artifacts`
 - `POST /v1/workflows/{workflow_id}/artifacts/{artifact_id}/approve`
+- `POST /v1/policy/evaluate`
 
 ## Essential documents
 

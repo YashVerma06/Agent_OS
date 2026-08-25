@@ -32,7 +32,7 @@ Web control room
 | Policy engine | role/capability/state decisions | deny by default with auditable decision objects |
 | Artifact store | versioned immutable evidence | in-memory foundation; Cloud Storage/Firestore adapter next |
 | FastAPI control plane | UI-facing contracts | health, workforce, workflow, transition, and audit endpoints |
-| Web control room | meeting, workflow, artifacts, approvals, policy/audit timeline | teammate-owned responsive application |
+| Web control room | meeting, workflow, artifacts, approvals, policy/audit timeline | React/TypeScript application in `web/`, backed only by control-plane APIs |
 | Repository jail | bounded code changes and commands | teammate-owned adapter for one demo repository |
 | Reviewer profile | deterministic acceptance and security checks | teammate-owned seeded failure/pass pipeline |
 | Google Cloud runtime | Vertex AI model access, Cloud Run, persistence, logs/traces | deployed after local golden path passes |
@@ -62,6 +62,21 @@ INTAKE
 - Approval records refer to immutable artifact hashes, not filenames alone.
 - External adapters receive short-lived credentials at execution time.
 - Prompts cannot change roles, policies, workflow state, or approvals.
+
+## Web control room foundation
+
+The hackathon interface is a single focused control-room route rather than a collection
+of disconnected dashboard pages. It presents one engagement as four linked surfaces:
+
+1. the current workforce role and deterministic workflow state;
+2. client discovery context and the artifact currently being produced;
+3. the exact immutable artifact awaiting a human decision;
+4. policy and audit evidence for every consequential action.
+
+The application lives in `web/`, uses React and TypeScript, and calls the FastAPI
+control plane through a configurable `VITE_API_BASE_URL`. Client-side state may cache
+responses for rendering, but it is not authoritative for workflow transitions,
+approvals, permissions, or artifact versions.
 
 ## Google Cloud target
 

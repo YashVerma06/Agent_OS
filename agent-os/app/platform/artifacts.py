@@ -25,6 +25,9 @@ class InMemoryArtifactStore:
     def __init__(self) -> None:
         self._artifacts: dict[str, ArtifactVersion] = {}
         self._versions: dict[tuple[str, str], list[str]] = defaultdict(list)
+        self._idempotency: dict[
+            tuple[str, str], tuple[tuple[object, ...], ArtifactVersion]
+        ] = {}
 
     def create(self, workflow_id: str, request: ArtifactCreateRequest) -> ArtifactVersion:
         logical_name = request.logical_name.upper()
@@ -32,9 +35,26 @@ class InMemoryArtifactStore:
             raise ArtifactError(
                 f"Actor {request.actor.value} cannot create artifact {logical_name}."
             )
+        digest = sha256(request.content.encode("utf-8")).hexdigest()
+        signature = (
+            logical_name,
+            request.kind,
+            digest,
+            request.actor,
+            tuple(request.source_artifact_ids),
+        )
+        idempotency_slot = (workflow_id, request.idempotency_key)
+        existing = self._idempotency.get(idempotency_slot)
+        if existing is not None:
+            existing_signature, existing_artifact = existing
+            if existing_signature != signature:
+                raise ArtifactError(
+                    "The idempotency key was already used for different artifact content."
+                )
+            return existing_artifact.model_copy(deep=True)
+
         key = (workflow_id, logical_name)
         version = len(self._versions[key]) + 1
-        digest = sha256(request.content.encode("utf-8")).hexdigest()
         artifact = ArtifactVersion(
             workflow_id=workflow_id,
             logical_name=logical_name,
@@ -47,6 +67,7 @@ class InMemoryArtifactStore:
         )
         self._artifacts[artifact.artifact_id] = artifact
         self._versions[key].append(artifact.artifact_id)
+        self._idempotency[idempotency_slot] = (signature, artifact)
         return artifact.model_copy(deep=True)
 
     def get(self, workflow_id: str, artifact_id: str) -> ArtifactVersion:

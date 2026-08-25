@@ -128,6 +128,7 @@ class ArtifactCreateRequest(BaseModel):
     content: str = Field(min_length=1, max_length=1_000_000)
     actor: ActorRole
     source_artifact_ids: list[str] = Field(default_factory=list)
+    idempotency_key: str = Field(default_factory=lambda: str(uuid4()), min_length=8, max_length=160)
 
 
 class ArtifactVersion(BaseModel):
