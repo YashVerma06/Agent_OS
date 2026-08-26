@@ -46,9 +46,15 @@ export default defineConfig(async () => {
 
   return {
     css: { postcss: { plugins: [tailwindcss()] } },
-    server: isCodexSeatbeltSandbox
-      ? { watch: { useFsEvents: false, usePolling: true } }
-      : undefined,
+    server: {
+      // Pin the dev port. Without strictPort, Vite silently moves to 3001 when
+      // 3000 is taken, which quietly breaks bookmarked URLs and any OAuth
+      // redirect URI registered against localhost:3000. Failing loudly is the
+      // cheaper outcome.
+      port: 3000,
+      strictPort: true,
+      ...(isCodexSeatbeltSandbox ? { watch: { useFsEvents: false, usePolling: true } } : {}),
+    },
     plugins: [
       vinext(),
       sites(),
