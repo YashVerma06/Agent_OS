@@ -236,6 +236,16 @@ export default function LandingPage() {
     return () => query.removeEventListener('change', sync);
   }, []);
 
+  // Smooth anchor scrolling, set on the scrolling element and restored on
+  // unmount so the control room at / keeps its default behaviour.
+  useEffect(() => {
+    if (!motionOk) return;
+    const root = document.documentElement;
+    const previous = root.style.scrollBehavior;
+    root.style.scrollBehavior = 'smooth';
+    return () => { root.style.scrollBehavior = previous; };
+  }, [motionOk]);
+
   // Nav background, and parallax on the hero layers. One rAF-throttled scroll
   // listener drives both so we never lay out twice in a frame.
   useEffect(() => {
