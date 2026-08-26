@@ -139,6 +139,21 @@ class InMemoryWorkflowEngine:
             raise WorkflowNotFound(workflow_id)
         return [event.model_copy(deep=True) for event in self._audit[workflow_id]]
 
+    def record_denial(
+        self,
+        workflow_id: str,
+        request: TransitionRequest,
+        *,
+        reason: str,
+        rule_id: str,
+    ) -> AuditEvent:
+        """Record a denial detected by a deterministic service before transition lookup."""
+
+        snapshot = self._workflows.get(workflow_id)
+        if snapshot is None:
+            raise WorkflowNotFound(workflow_id)
+        return self._denial(snapshot, request, reason, rule_id)
+
     def transition(self, workflow_id: str, request: TransitionRequest) -> TransitionResult:
         snapshot = self._workflows.get(workflow_id)
         if snapshot is None:

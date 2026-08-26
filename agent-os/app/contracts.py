@@ -59,6 +59,20 @@ class MeetingMode(StrEnum):
     WRITTEN_BRIEF = "written_brief"
 
 
+class AgentRunStatus(StrEnum):
+    READY = "READY"
+    COMPLETED = "COMPLETED"
+    WAITING_FOR_HUMAN = "WAITING_FOR_HUMAN"
+    DENIED = "DENIED"
+    FAILED = "FAILED"
+
+
+class HandoffGate(StrEnum):
+    NONE = "NONE"
+    SPECIFICATION_APPROVAL = "SPECIFICATION_APPROVAL"
+    RELEASE_APPROVAL = "RELEASE_APPROVAL"
+
+
 class OrganizationCreateRequest(BaseModel):
     display_name: str = Field(min_length=2, max_length=120)
     legal_name: str | None = Field(default=None, max_length=180)
@@ -257,3 +271,126 @@ class ArtifactVersion(BaseModel):
 class ArtifactApprovalRequest(BaseModel):
     actor: ActorRole
     expected_sha256: str = Field(min_length=64, max_length=64)
+
+
+class ArtifactReference(BaseModel):
+    """Content-free artifact pointer safe to pass between specialist agents."""
+
+    artifact_id: str
+    logical_name: str
+    kind: str
+    version: int = Field(ge=1)
+    sha256: str = Field(min_length=64, max_length=64)
+    generated_by: ActorRole
+    approved: bool
+    immutable: bool
+    source_artifact_ids: list[str] = Field(default_factory=list)
+
+
+class RepositoryBoundary(BaseModel):
+    repository_url: str = Field(
+        min_length=19,
+        max_length=300,
+        pattern=r"^https://github\.com/[^/\s]+/[^/\s]+/?$",
+    )
+    base_branch: str = Field(min_length=1, max_length=120)
+    working_branch_prefix: str = Field(min_length=2, max_length=80)
+
+
+class ClientContext(BaseModel):
+    client_name: str | None = Field(default=None, max_length=160)
+    contact_name: str | None = Field(default=None, max_length=120)
+    contact_email: str | None = Field(default=None, max_length=254)
+    project_name: str = Field(min_length=3, max_length=120)
+    initial_request: str = Field(min_length=10, max_length=10_000)
+
+
+class ContextManifest(BaseModel):
+    """Minimum-authority, tenant-scoped input assembled for one agent run."""
+
+    workflow_id: str
+    tenant_id: str
+    organization_id: str | None = None
+    workforce_id: str | None = None
+    workflow_state: WorkflowState
+    workflow_version: int = Field(ge=1)
+    target_agent: ActorRole
+    client: ClientContext
+    artifact_references: list[ArtifactReference] = Field(default_factory=list)
+    repository_boundary: RepositoryBoundary | None = None
+    candidate_capabilities: list[Capability] = Field(default_factory=list)
+    unresolved_questions: list[str] = Field(default_factory=list)
+    trace_id: str = Field(default_factory=lambda: str(uuid4()))
+    created_at: datetime = Field(default_factory=utc_now)
+
+
+class HandoffEnvelope(BaseModel):
+    """An agent proposal that still requires deterministic workflow validation."""
+
+    workflow_id: str
+    from_agent: ActorRole
+    requested_next_agent: ActorRole | None = None
+    output_artifact_ids: list[str] = Field(default_factory=list)
+    required_gate: HandoffGate = HandoffGate.NONE
+    status: AgentRunStatus
+    trace_id: str = Field(default_factory=lambda: str(uuid4()))
+    idempotency_key: str = Field(min_length=8, max_length=160)
+
+
+class AgentRunRequest(BaseModel):
+    workflow_id: str
+    target_agent: ActorRole
+    context: ContextManifest
+    input_artifact_ids: list[str] = Field(default_factory=list)
+    trace_id: str = Field(default_factory=lambda: str(uuid4()))
+    idempotency_key: str = Field(min_length=8, max_length=160)
+
+
+class AgentRunResult(BaseModel):
+    workflow_id: str
+    agent: ActorRole
+    status: AgentRunStatus
+    output_artifact_ids: list[str] = Field(default_factory=list)
+    summary: str = Field(default="", max_length=4_000)
+    handoff: HandoffEnvelope | None = None
+    trace_id: str = Field(default_factory=lambda: str(uuid4()))
+    replayed: bool = False
+
+
+class NextActionRequest(BaseModel):
+    idempotency_key: str = Field(min_length=8, max_length=160)
+    trace_id: str = Field(default_factory=lambda: str(uuid4()))
+
+
+class OrchestrationDecision(BaseModel):
+    workflow_id: str
+    workflow_state: WorkflowState
+    status: AgentRunStatus
+    target_agent: ActorRole | None = None
+    required_gate: HandoffGate = HandoffGate.NONE
+    reason: str
+    run_request: AgentRunRequest | None = None
+    trace_id: str = Field(default_factory=lambda: str(uuid4()))
+    replayed: bool = False
+
+
+class ApprovalRecord(BaseModel):
+    approval_id: str = Field(default_factory=lambda: str(uuid4()))
+    workflow_id: str
+    artifact_id: str
+    artifact_sha256: str = Field(min_length=64, max_length=64)
+    gate: HandoffGate
+    actor: Literal[ActorRole.HUMAN] = ActorRole.HUMAN
+    trace_id: str = Field(default_factory=lambda: str(uuid4()))
+    created_at: datetime = Field(default_factory=utc_now)
+
+
+class MeetingSessionSummary(BaseModel):
+    meeting_id: str
+    workflow_id: str
+    mode: MeetingMode
+    status: Literal["CREATED", "LIVE", "FINALIZING", "COMPLETED", "FAILED"]
+    transcript_artifact_id: str | None = None
+    discovery_artifact_id: str | None = None
+    specification_artifact_id: str | None = None
+    trace_id: str = Field(default_factory=lambda: str(uuid4()))

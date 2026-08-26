@@ -192,3 +192,45 @@ def test_control_room_specification_approval_slice() -> None:
     )
     assert policy_denial.status_code == 200
     assert policy_denial.json()["allowed"] is False
+
+
+def test_specification_transition_rejects_unverified_artifact_evidence() -> None:
+    workflow = client.post(
+        "/v1/workflows",
+        json={
+            "name": "Unverified specification gate",
+            "client_request": "Build a workflow that proves exact artifact approval is required.",
+        },
+    ).json()
+    workflow_id = workflow["workflow_id"]
+    client.post(
+        f"/v1/workflows/{workflow_id}/transitions",
+        json={
+            "action": "start_discovery",
+            "actor": "manager",
+            "idempotency_key": f"{workflow_id}-start",
+        },
+    )
+    client.post(
+        f"/v1/workflows/{workflow_id}/transitions",
+        json={
+            "action": "submit_specification",
+            "actor": "discovery",
+            "idempotency_key": f"{workflow_id}-submit",
+        },
+    )
+
+    response = client.post(
+        f"/v1/workflows/{workflow_id}/transitions",
+        json={
+            "action": "approve_specification",
+            "actor": "human",
+            "idempotency_key": f"{workflow_id}-approve",
+            "metadata": {"approved_sha256": "0" * 64},
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["audit_event"]["allowed"] is False
+    audit = client.get(f"/v1/workflows/{workflow_id}/audit").json()
+    assert audit[-1]["rule_id"] == "gate.specification_artifact_missing"
