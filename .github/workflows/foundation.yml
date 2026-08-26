@@ -28,3 +28,20 @@ jobs:
       - run: uv sync --extra dev
       - run: uv run ruff check .
       - run: uv run python -m pytest
+
+  web-control-room:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: agent-os/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.13.0"
+          cache: npm
+          cache-dependency-path: agent-os/web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+      - run: npm audit --audit-level=high

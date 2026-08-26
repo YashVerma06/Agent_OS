@@ -91,15 +91,41 @@ class InMemoryWorkflowEngine:
     def __init__(self) -> None:
         self._workflows: dict[str, WorkflowSnapshot] = {}
         self._audit: dict[str, list[AuditEvent]] = {}
+        self._create_idempotency: dict[
+            tuple[str, str], tuple[tuple[object, ...], WorkflowSnapshot]
+        ] = {}
         self._idempotency: dict[
             tuple[str, str], tuple[tuple[str, ActorRole], TransitionResult]
         ] = {}
 
     def create(self, request: WorkflowCreateRequest) -> WorkflowSnapshot:
+        signature = (
+            request.name,
+            request.client_request,
+            request.organization_id,
+            request.workforce_id,
+            request.client_name,
+            request.client_contact_name,
+            request.client_contact_email,
+        )
+        idempotency_slot = (request.tenant_id, request.idempotency_key)
+        existing = self._create_idempotency.get(idempotency_slot)
+        if existing is not None:
+            existing_signature, snapshot = existing
+            if existing_signature != signature:
+                raise IdempotencyConflict(
+                    "The idempotency key was already used for a different workflow request."
+                )
+            return snapshot.model_copy(deep=True)
+
         workflow_id = str(uuid4())
-        snapshot = WorkflowSnapshot(workflow_id=workflow_id, **request.model_dump())
+        snapshot = WorkflowSnapshot(
+            workflow_id=workflow_id,
+            **request.model_dump(exclude={"idempotency_key"}),
+        )
         self._workflows[workflow_id] = snapshot
         self._audit[workflow_id] = []
+        self._create_idempotency[idempotency_slot] = (signature, snapshot)
         return snapshot.model_copy(deep=True)
 
     def get(self, workflow_id: str) -> WorkflowSnapshot:

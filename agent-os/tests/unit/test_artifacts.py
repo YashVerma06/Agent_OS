@@ -86,3 +86,21 @@ def test_artifact_role_boundary_is_enforced_outside_prompts() -> None:
                 actor=ActorRole.DISCOVERY,
             ),
         )
+
+
+def test_artifact_creation_is_idempotent() -> None:
+    store = InMemoryArtifactStore()
+    request = ArtifactCreateRequest(
+        logical_name="SPECIFICATIONS",
+        kind="text/markdown",
+        content="# Stable specification",
+        actor=ActorRole.DISCOVERY,
+        idempotency_key="specifications-v1",
+    )
+
+    first = store.create("workflow-1", request)
+    replay = store.create("workflow-1", request)
+
+    assert replay.artifact_id == first.artifact_id
+    assert replay.version == 1
+    assert len(store.list("workflow-1")) == 1

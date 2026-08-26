@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
@@ -53,10 +53,112 @@ class Capability(StrEnum):
     PROTECTED_BRANCH_WRITE = "protected_branch.write"
 
 
+class MeetingMode(StrEnum):
+    AGENT_OS_ROOM = "agent_os_room"
+    TRANSCRIPT_UPLOAD = "transcript_upload"
+    WRITTEN_BRIEF = "written_brief"
+
+
+class OrganizationCreateRequest(BaseModel):
+    display_name: str = Field(min_length=2, max_length=120)
+    legal_name: str | None = Field(default=None, max_length=180)
+    owner_name: str = Field(min_length=2, max_length=120)
+    owner_email: str = Field(min_length=5, max_length=254, pattern=r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+    company_size: Literal["1-10", "11-50", "51-200", "201-1000", "1000+"]
+    idempotency_key: str = Field(default_factory=lambda: str(uuid4()), min_length=8, max_length=160)
+
+
+class OrganizationProfile(BaseModel):
+    organization_id: str
+    tenant_id: str
+    display_name: str
+    legal_name: str | None = None
+    owner_name: str
+    owner_email: str
+    company_size: str
+    identity_status: Literal["UNVERIFIED_FOUNDATION"] = "UNVERIFIED_FOUNDATION"
+    created_at: datetime = Field(default_factory=utc_now)
+
+
+class WorkforceTemplate(BaseModel):
+    template_id: str
+    display_name: str
+    description: str
+    agent_roles: list[ActorRole]
+    human_gates: list[str]
+    version: int = 1
+
+
+class WorkforceActivationRequest(BaseModel):
+    template_id: str = Field(min_length=3, max_length=100)
+    display_name: str = Field(min_length=3, max_length=120)
+    meeting_mode: MeetingMode
+    repository_url: str = Field(
+        min_length=19,
+        max_length=300,
+        pattern=r"^https://github\.com/[^/\s]+/[^/\s]+/?$",
+    )
+    base_branch: str = Field(default="main", min_length=1, max_length=120)
+    working_branch_prefix: str = Field(default="agentos/", min_length=2, max_length=80)
+    specification_approver_email: str = Field(
+        min_length=5,
+        max_length=254,
+        pattern=r"^[^\s@]+@[^\s@]+\.[^\s@]+$",
+    )
+    release_approver_email: str = Field(
+        min_length=5,
+        max_length=254,
+        pattern=r"^[^\s@]+@[^\s@]+\.[^\s@]+$",
+    )
+    idempotency_key: str = Field(default_factory=lambda: str(uuid4()), min_length=8, max_length=160)
+
+
+class ActivatedWorkforce(BaseModel):
+    workforce_id: str
+    organization_id: str
+    template_id: str
+    display_name: str
+    meeting_mode: MeetingMode
+    repository_url: str
+    base_branch: str
+    working_branch_prefix: str
+    specification_approver_email: str
+    release_approver_email: str
+    status: Literal["CONFIGURED"] = "CONFIGURED"
+    integration_status: dict[str, str] = Field(
+        default_factory=lambda: {
+            "meeting": "configuration_saved",
+            "github": "boundary_saved_not_connected",
+            "calendar": "not_connected",
+        }
+    )
+    created_at: datetime = Field(default_factory=utc_now)
+
+
+class EngagementCreateRequest(BaseModel):
+    workforce_id: str = Field(min_length=8, max_length=160)
+    client_name: str = Field(min_length=2, max_length=160)
+    project_name: str = Field(min_length=3, max_length=160)
+    client_contact_name: str | None = Field(default=None, max_length=120)
+    client_contact_email: str | None = Field(
+        default=None,
+        max_length=254,
+        pattern=r"^[^\s@]+@[^\s@]+\.[^\s@]+$",
+    )
+    client_request: str = Field(min_length=20, max_length=10_000)
+    idempotency_key: str = Field(default_factory=lambda: str(uuid4()), min_length=8, max_length=160)
+
+
 class WorkflowCreateRequest(BaseModel):
     name: str = Field(min_length=3, max_length=120)
     client_request: str = Field(min_length=10, max_length=10_000)
     tenant_id: str = Field(default="agent-os-labs", min_length=3, max_length=120)
+    organization_id: str | None = None
+    workforce_id: str | None = None
+    client_name: str | None = Field(default=None, max_length=160)
+    client_contact_name: str | None = Field(default=None, max_length=120)
+    client_contact_email: str | None = Field(default=None, max_length=254)
+    idempotency_key: str = Field(default_factory=lambda: str(uuid4()), min_length=8, max_length=160)
 
 
 class WorkflowSnapshot(BaseModel):
@@ -64,6 +166,11 @@ class WorkflowSnapshot(BaseModel):
     tenant_id: str
     name: str
     client_request: str
+    organization_id: str | None = None
+    workforce_id: str | None = None
+    client_name: str | None = None
+    client_contact_name: str | None = None
+    client_contact_email: str | None = None
     state: WorkflowState = WorkflowState.INTAKE
     version: int = 1
     reviewer_passed: bool = False
@@ -128,6 +235,7 @@ class ArtifactCreateRequest(BaseModel):
     content: str = Field(min_length=1, max_length=1_000_000)
     actor: ActorRole
     source_artifact_ids: list[str] = Field(default_factory=list)
+    idempotency_key: str = Field(default_factory=lambda: str(uuid4()), min_length=8, max_length=160)
 
 
 class ArtifactVersion(BaseModel):

@@ -26,6 +26,9 @@ Client
 
 ## Demo client request
 
+The following is an optional, resettable sample engagement. It must not be hardcoded as
+the default organization, workspace, or control-room identity.
+
 > We manage rental properties and need a small maintenance-request portal. Tenants should submit a maintenance issue, and our property manager should see requests and update their status.
 
 The request is intentionally incomplete. Discovery must clarify users, fields, workflow states, validation, authentication, attachments, notifications, success criteria, and explicit exclusions.
@@ -89,6 +92,7 @@ Each artifact records its version, SHA-256 hash, source artifact IDs, generator 
 
 ## P0 — submission critical
 
+- generic organization -> workforce -> engagement onboarding;
 - professional 1440×900 control-room UI;
 - controlled meeting transcript and meaningful discovery clarification;
 - versioned specification with human approval;
