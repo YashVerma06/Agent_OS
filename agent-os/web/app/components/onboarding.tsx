@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState, type ReactNode } from 'react';
 import type {
   AgentDefinition,
@@ -173,7 +174,7 @@ export function Onboarding({
   return (
     <main className="onboarding-shell">
       <section className="onboarding-story">
-        <div className="onboarding-brand"><span className="brand-mark">A<span>O</span></span><div><strong>Agent OS</strong><small>Workforce infrastructure</small></div></div>
+        <Link className="onboarding-brand" href="/"><span className="brand-mark">A<span>O</span></span><div><strong>Agent OS</strong><small>Workforce infrastructure</small></div></Link>
         <div className="story-copy">
           <p className="eyebrow">Build the operating system for your AI team</p>
           <h1>Activate a governed workforce for real client delivery.</h1>

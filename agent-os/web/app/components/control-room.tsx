@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { controlPlane } from '../lib/api';
 import type {
@@ -267,7 +268,7 @@ export function ControlRoom({
   return (
     <main className="app-shell" id="overview">
       <aside className="nav-rail" aria-label="Workspace navigation">
-        <div className="brand-mark" aria-label="Agent OS">A<span>O</span></div>
+        <Link className="brand-mark" href="/" aria-label="Agent OS — back to the overview">A<span>O</span></Link>
         <nav>
           <a className="nav-icon active" href="#overview" aria-label="Overview"><Icon name="grid" /></a>
           <a className="nav-icon" href="#workflow" aria-label="Workflow"><Icon name="workflow" /></a>
