@@ -1,20 +1,34 @@
 from __future__ import annotations
 
 from fastapi import FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.contracts import (
+    ActivatedWorkforce,
     ArtifactApprovalRequest,
     ArtifactCreateRequest,
     ArtifactVersion,
     AuditEvent,
+    EngagementCreateRequest,
+    OrganizationCreateRequest,
+    OrganizationProfile,
     PolicyDecision,
     PolicyEvaluationRequest,
     TransitionRequest,
     TransitionResult,
     WorkflowCreateRequest,
     WorkflowSnapshot,
+    WorkforceActivationRequest,
+    WorkforceTemplate,
 )
 from app.platform.artifacts import ArtifactError, InMemoryArtifactStore
+from app.platform.organizations import (
+    InMemoryOrganizationStore,
+    OnboardingError,
+    OnboardingIdempotencyConflict,
+    OrganizationNotFound,
+    WorkforceNotFound,
+)
 from app.platform.policy import PolicyEngine
 from app.platform.workflow import (
     IdempotencyConflict,
@@ -31,9 +45,17 @@ api = FastAPI(
     description="Deterministic workflow, policy, artifact, and audit foundation.",
 )
 settings = get_settings()
+api.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.allowed_cors_origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Trace-Id"],
+)
 workflows = InMemoryWorkflowEngine()
 artifacts = InMemoryArtifactStore()
 policy = PolicyEngine()
+organizations = InMemoryOrganizationStore()
 
 
 @api.get("/health")
@@ -54,9 +76,97 @@ def get_workforce() -> list[dict[str, object]]:
     return workforce_contract()
 
 
+@api.get("/v1/workforce-templates", response_model=list[WorkforceTemplate])
+def get_workforce_templates() -> list[WorkforceTemplate]:
+    return organizations.templates()
+
+
+@api.post(
+    "/v1/organizations",
+    response_model=OrganizationProfile,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_organization(request: OrganizationCreateRequest) -> OrganizationProfile:
+    try:
+        return organizations.create(request)
+    except OnboardingIdempotencyConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@api.get("/v1/organizations/{organization_id}", response_model=OrganizationProfile)
+def get_organization(organization_id: str) -> OrganizationProfile:
+    try:
+        return organizations.get(organization_id)
+    except OrganizationNotFound as exc:
+        raise HTTPException(status_code=404, detail="Organization not found.") from exc
+
+
+@api.post(
+    "/v1/organizations/{organization_id}/workforces",
+    response_model=ActivatedWorkforce,
+    status_code=status.HTTP_201_CREATED,
+)
+def activate_workforce(
+    organization_id: str, request: WorkforceActivationRequest
+) -> ActivatedWorkforce:
+    try:
+        return organizations.activate(organization_id, request)
+    except OrganizationNotFound as exc:
+        raise HTTPException(status_code=404, detail="Organization not found.") from exc
+    except OnboardingIdempotencyConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except OnboardingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@api.get(
+    "/v1/organizations/{organization_id}/workforces/{workforce_id}",
+    response_model=ActivatedWorkforce,
+)
+def get_activated_workforce(
+    organization_id: str, workforce_id: str
+) -> ActivatedWorkforce:
+    try:
+        return organizations.get_workforce(organization_id, workforce_id)
+    except (OrganizationNotFound, WorkforceNotFound) as exc:
+        raise HTTPException(status_code=404, detail="Activated workforce not found.") from exc
+
+
+@api.post(
+    "/v1/organizations/{organization_id}/engagements",
+    response_model=WorkflowSnapshot,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_engagement(
+    organization_id: str, request: EngagementCreateRequest
+) -> WorkflowSnapshot:
+    try:
+        organization = organizations.get(organization_id)
+        organizations.get_workforce(organization_id, request.workforce_id)
+    except (OrganizationNotFound, WorkforceNotFound) as exc:
+        raise HTTPException(status_code=404, detail="Organization or workforce not found.") from exc
+
+    return workflows.create(
+        WorkflowCreateRequest(
+            name=request.project_name,
+            client_request=request.client_request,
+            tenant_id=organization.tenant_id,
+            organization_id=organization.organization_id,
+            workforce_id=request.workforce_id,
+            client_name=request.client_name,
+            client_contact_name=request.client_contact_name,
+            client_contact_email=request.client_contact_email,
+            idempotency_key=request.idempotency_key,
+        )
+    )
+
+
 @api.post("/v1/workflows", response_model=WorkflowSnapshot, status_code=status.HTTP_201_CREATED)
 def create_workflow(request: WorkflowCreateRequest) -> WorkflowSnapshot:
-    return workflows.create(request)
+    try:
+        return workflows.create(request)
+    except IdempotencyConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @api.get("/v1/workflows/{workflow_id}", response_model=WorkflowSnapshot)
