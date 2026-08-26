@@ -30,6 +30,14 @@
   box-sizing: border-box;
 }
 
+/* The nav is fixed at ~74px tall, so an anchor jump would otherwise park the
+   target section's heading underneath it. Offset every anchor target by the
+   nav height plus breathing room. */
+
+.lp-root :where([id]) {
+  scroll-margin-top: 104px;
+}
+
 /* ------------------------------------------------------------------ type -- */
 
 .lp-eyebrow {
@@ -341,7 +349,19 @@
   z-index: 0;
 }
 
-.lp-hero > * { position: relative; z-index: 1; }
+/* Lift the hero's real content above the decorative layers.
+ *
+ * This must NOT be `.lp-hero > *`. That selector has the same specificity as
+ * `.lp-aurora` / `.lp-grid-veil` but comes later in the file, so it won the
+ * cascade and flipped both of them from `absolute` to `relative` - dropping
+ * 130vh + 120vh of empty in-flow blocks into the hero and pushing every
+ * section below it out of view. Name the content children instead. */
+
+.lp-hero > .lp-hero-grid,
+.lp-hero > .lp-trust {
+  position: relative;
+  z-index: 1;
+}
 
 /* Hero request card. */
 
