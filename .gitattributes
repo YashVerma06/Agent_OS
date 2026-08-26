@@ -1,0 +1,4 @@
+# Shell scripts must keep LF endings. They are executed in Google Cloud Shell
+# and in Linux containers, where a CRLF shebang fails with a confusing
+# "bad interpreter: /usr/bin/env bash^M" error.
+*.sh text eol=lf

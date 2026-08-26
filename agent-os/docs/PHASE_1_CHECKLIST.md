@@ -7,15 +7,19 @@
 | Git | Installed (`2.54.0.windows.1`) | Ready. |
 | Node.js | Installed (`26.2.0`) | Ready; we will confirm framework compatibility before scaffolding. |
 | npm | Installed (`11.13.0`) | Ready. |
-| Google Cloud CLI | Installed (`581.0.0`); current Codex session has stale `PATH` | Verified through its installed path. Restart Codex before using `gcloud` by name. |
+| Google Cloud CLI | **Not installed** on the current workstation | Corrected August 26, 2026. Google Cloud Shell is the approved workspace for all `gcloud` work — see the note below. |
 | `uv` | Installed (`0.12.5`); current Codex session has stale `PATH` | Verified through its installed path. Restart Codex before using `uv` by name. |
 | GitHub CLI | Not found on `PATH` | Optional; repositories can be created through github.com. Install later if desired. |
 | WinGet | Not found on `PATH` | Use the providers' official Windows installers instead of WinGet commands. |
 
-Recommended installation order:
+> **Correction, August 26, 2026.** The earlier snapshot recorded Google Cloud CLI `581.0.0` as installed with a stale `PATH`. That is wrong for this workstation. There is no Cloud SDK under `%LOCALAPPDATA%\Google`, `Program Files\Google`, or `C:\google-cloud-sdk`, and no Cloud SDK entry in the persisted user or machine `PATH`. Restarting the shell will not surface it.
 
-1. Restart Codex so the updated user `PATH` is inherited.
-2. Verify `gcloud --version` and `uv --version` by name.
+**Decision:** all `gcloud` work is done in **Google Cloud Shell** (<https://shell.cloud.google.com>) rather than on the workstation. Cloud Shell ships `gcloud`, `curl`, `jq`, and Docker preauthenticated, which removes the local install, the `PATH` problem, and the need for `gcloud auth login` on a personal machine. Only `uv` and the Python test suite run locally.
+
+Recommended order:
+
+1. Owner completes [`../infra/OWNER_SETUP.md`](../infra/OWNER_SETUP.md).
+2. Arpit opens Cloud Shell and runs [`../infra/scripts/verify-access.sh`](../infra/scripts/verify-access.sh).
 3. Create the demo repository in the browser; GitHub CLI is not a Phase 1 blocker.
 
 ## 1. Hackathon administration
@@ -38,29 +42,15 @@ Recommended installation order:
 
 Approved initial region: `us-central1`. It provides the safest cross-service fit for Agent Runtime, Sessions, Memory Bank, Agent Gateway, Cloud Run, Firestore, and full Model Armor support.
 
-### Owner action: link billing
+### Owner actions
 
-This is a financial-account action and must be completed by the owner in Google Cloud Console.
+Billing linkage, the budget alert, API enablement, the runtime service account, all IAM grants, and the OAuth client are administrative actions that only the project owner (`sv3981158@gmail.com`) can complete. They are written up as a single Console click-through runbook:
 
-1. Sign in with the teammate GCP admin account and select project `agent-os-506220`.
-2. Open **Billing > My projects**.
-3. Find `agent-os-506220`, open its **Actions** menu, and choose **Change billing**.
-4. Select the billing account containing the claimed hackathon credits and choose **Set account**.
-5. Return to **Billing > My projects** and verify that the project row displays the intended billing-account name instead of **Billing is disabled**.
-6. Never share the payment method, billing-account ID, card details, or recovery information in chat or source control.
+**→ [`../infra/OWNER_SETUP.md`](../infra/OWNER_SETUP.md)**
 
-### Owner action: create the budget alert
+That runbook is the single source of truth for those steps; do not duplicate them here, or the two will drift. It covers billing (§1), the budget guardrail (§2), APIs (§3), the runtime service account (§4–§5), Arpit's roles (§6), the resource-scoped `roles/iam.serviceAccountUser` grant (§7), Artifact Registry / Firestore / Storage / Pub&nbsp;Sub (§8–§11), the OAuth client (§12), and the secret containers (§13).
 
-Complete this immediately after billing is linked.
-
-1. Keep `agent-os-506220` selected and open **Billing > Budgets & alerts**.
-2. Choose **Create budget** and select **Alerts only**.
-3. Name it `Agent OS Hackathon Guardrail`.
-4. Scope it only to project `agent-os-506220`; include all services.
-5. Choose a fixed budget amount that represents the maximum spend you want visibility on, even if credits are expected to cover usage.
-6. Add actual-spend thresholds at 25%, 50%, 75%, 90%, and 100%.
-7. Enable email notifications for billing administrators/users and finish creating the budget.
-8. Remember: a budget alert sends notifications; it does not automatically stop resources or cap spending. Automated shutdown controls can be added separately after the core deployment works.
+The owner must never share a password, a `gcloud` credential, a service-account key, or a browser session in order to complete it. Every step is a grant, not a credential transfer.
 
 Core APIs to enable after project creation:
 
@@ -76,6 +66,7 @@ artifactregistry.googleapis.com
 logging.googleapis.com
 monitoring.googleapis.com
 cloudtrace.googleapis.com
+iamcredentials.googleapis.com
 modelarmor.googleapis.com
 calendar-json.googleapis.com
 meet.googleapis.com                 # only if the Meet adapter is selected
@@ -83,27 +74,32 @@ meet.googleapis.com                 # only if the Meet adapter is selected
 
 Do not create permanent service-account keys. Use Application Default Credentials locally and managed identities in Cloud Run/Agent Runtime.
 
-## 3. Local Google authentication
+## 3. Google authentication and access verification
 
-Run only after the project ID is known:
+Because `gcloud` is not installed on the workstation, this runs in **Google Cloud Shell**. Cloud Shell is already authenticated as the signed-in Google account, so `gcloud auth login` is not needed.
 
-```powershell
-gcloud auth login
-gcloud auth application-default login
+Open <https://shell.cloud.google.com>, then:
+
+```bash
 gcloud config set project agent-os-506220
-
-$env:GOOGLE_CLOUD_PROJECT="agent-os-506220"
-$env:GOOGLE_CLOUD_LOCATION="us-central1"
-$env:GOOGLE_GENAI_USE_VERTEXAI="TRUE"
+git clone https://github.com/YashVerma06/Agent_OS.git && cd Agent_OS
+bash agent-os/infra/scripts/verify-access.sh
 ```
 
-Then verify the current Google agent toolchain:
+The script is read-only, costs nothing, and never reads a secret value. It reports pass/fail for billing, all 14 APIs, every deployment permission, the runtime service account and the `actAs` grant, Artifact Registry, Firestore location and mode, the bucket, Pub/Sub, the three secret names, and a live Vertex AI reachability check. Each failure names the `OWNER_SETUP.md` section that fixes it.
 
-```powershell
-uvx google-agents-cli setup
-agents-cli login -i
-agents-cli login --status
-```
+Send the output to the owner. It is the objective evidence for this section and for §4 below — far more reliable than re-reading the Console.
+
+- [ ] `verify-access.sh` run in Cloud Shell.
+- [ ] Output sent to the owner.
+- [ ] Exit code 0 (every required check passing).
+
+> **Open decision — local ADK execution.** Cloud Shell covers administration, verification, and deployment. It does **not** provide Application Default Credentials on the workstation, which `agent-os/README.md` requires for live (non-mocked) ADK runs via `gcloud auth application-default login`. The deterministic test suite is unaffected — it does not call a model. Before the availability spike in §4, choose one:
+>
+> 1. install the Google Cloud CLI on the workstation after all, purely for ADC; or
+> 2. run live ADK execution inside Cloud Shell, keeping the workstation for tests and editing only.
+>
+> Do not leave this unresolved past the spike — it gates every live Gemini call.
 
 ## 4. Enterprise-agent availability spike
 
@@ -132,6 +128,8 @@ Record each result as `available`, `preview/conditional`, `blocked`, or `fallbac
 - [ ] Register the deployed callback URL after Cloud Run exists.
 - [ ] Grant only the calendar scopes needed to create/update demo events.
 - [ ] Store the client secret and refresh token in Secret Manager.
+
+Owner performs all of the above — step-by-step in [`../infra/OWNER_SETUP.md`](../infra/OWNER_SETUP.md) §12 (consent screen, test user, scopes, Web client) and §13 (secret containers). The deployed callback URL stays open until Cloud Run exists and its URL is known.
 
 Recommended MVP meeting design:
 
@@ -164,3 +162,5 @@ Manager Agent creates Google Calendar event
 - [ ] No secrets exist in tracked files.
 
 The local foundation is now scaffolded on `codex/arpit-foundation`. Cloud deployment remains blocked until the project/IAM/API checks above are complete.
+
+**Definition of unblocked:** `infra/scripts/verify-access.sh` exits 0 in Cloud Shell. Until then, treat cloud deployment as blocked regardless of what the Console appears to show.
