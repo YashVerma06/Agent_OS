@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.meeting_routes import router as meeting_router
 from app.api.workflow_routes import create_orchestration_router
 from app.contracts import (
     ActivatedWorkforce,
@@ -70,6 +71,7 @@ orchestration = OrchestrationCoordinator(
     contexts=contexts,
 )
 api.include_router(create_orchestration_router(orchestration))
+api.include_router(meeting_router)
 
 
 @api.get("/health")
