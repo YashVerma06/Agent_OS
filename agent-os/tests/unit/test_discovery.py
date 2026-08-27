@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import pytest
 
-from app.agents.discovery import (
+from app.agents.discovery_conversation import (
     AI_DISCLOSURE,
     CONVERSATION_INSTRUCTION,
     FORBIDDEN_CAPABILITIES,
     ForbiddenDiscoveryAction,
     assert_discovery_may,
-    build_engagement_context,
+    build_discovery_context,
     build_system_instruction,
     discovery_boundary_report,
     opening_utterance,
@@ -37,16 +37,16 @@ def snapshot(**overrides) -> WorkflowSnapshot:
 
 
 def test_context_is_projected_from_one_engagement() -> None:
-    context = build_engagement_context(snapshot())
+    context = build_discovery_context(snapshot())
     assert context.workflow_id == "wf-alpha"
-    assert context.client_name == "Alpha Property Group"
-    assert context.project_name == "Maintenance Portal"
+    assert context.client.client_name == "Alpha Property Group"
+    assert context.client.project_name == "Maintenance Portal"
 
 
 def test_context_does_not_leak_a_sibling_engagement() -> None:
     """Context isolation: building from one snapshot cannot surface another."""
-    alpha = build_engagement_context(snapshot())
-    beta = build_engagement_context(
+    alpha = build_discovery_context(snapshot())
+    beta = build_discovery_context(
         snapshot(
             workflow_id="wf-beta",
             tenant_id="tenant-beta",
@@ -68,12 +68,12 @@ def test_context_does_not_leak_a_sibling_engagement() -> None:
 
 def test_context_omits_the_client_email() -> None:
     """The agent needs a name to address someone, never a contact address."""
-    context = build_engagement_context(snapshot())
+    context = build_discovery_context(snapshot())
     assert "dana@example.com" not in build_system_instruction(context)
 
 
 def test_system_instruction_carries_the_engagement_block() -> None:
-    prompt = build_system_instruction(build_engagement_context(snapshot()))
+    prompt = build_system_instruction(build_discovery_context(snapshot()))
     assert CONVERSATION_INSTRUCTION in prompt
     assert "Engagement context (this engagement only)" in prompt
     assert "wf-alpha" in prompt
@@ -83,7 +83,7 @@ def test_system_instruction_carries_the_engagement_block() -> None:
 
 
 def test_opening_discloses_ai_identity_and_asks_one_question() -> None:
-    opening = opening_utterance(build_engagement_context(snapshot()))
+    opening = opening_utterance(build_discovery_context(snapshot()))
     assert AI_DISCLOSURE in opening
     assert opening.count("?") == 1
 

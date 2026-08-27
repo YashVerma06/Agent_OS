@@ -79,12 +79,41 @@ export interface MeetingView {
   topics: string[];
 }
 
-export interface SpecificationHandoff {
+/** Mirrors the shared `HandoffEnvelope` contract. */
+export interface HandoffEnvelope {
   workflow_id: string;
+  from_agent: string;
+  requested_next_agent: string | null;
+  output_artifact_ids: string[];
+  required_gate: 'NONE' | 'SPECIFICATION_APPROVAL' | 'RELEASE_APPROVAL';
+  status: AgentRunStatus;
+  trace_id: string;
+  idempotency_key: string;
+}
+
+export type AgentRunStatus =
+  | 'READY'
+  | 'COMPLETED'
+  | 'WAITING_FOR_HUMAN'
+  | 'DENIED'
+  | 'FAILED';
+
+/** Mirrors the shared `AgentRunResult` contract. */
+export interface AgentRunResult {
+  workflow_id: string;
+  agent: string;
+  status: AgentRunStatus;
+  output_artifact_ids: string[];
+  summary: string;
+  handoff: HandoffEnvelope | null;
+  trace_id: string;
+  replayed: boolean;
+}
+
+export interface SpecificationHandoff {
+  run: AgentRunResult;
   meeting_id: string;
-  requested_transition: string;
   workflow_state: string;
-  awaiting: string;
   transcript_artifact_id: string;
   discovery_record_artifact_id: string;
   specification_artifact_id: string;

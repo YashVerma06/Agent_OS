@@ -65,6 +65,33 @@ INTAKE
 - External adapters receive short-lived credentials at execution time.
 - Prompts cannot change roles, policies, workflow state, or approvals.
 
+## Delegation and context boundary
+
+The five-day build runs as one ADK application. Specialists do not form an
+uncontrolled all-to-all chat network. The Workforce Manager requests the next
+specialist, while deterministic orchestration validates the request against the
+current workflow state.
+
+```text
+workflow snapshot + approved artifact references + tenant boundary
+  -> ContextManifest scoped to one specialist
+  -> AgentRunRequest
+  -> specialist reasoning
+  -> AgentRunResult + optional HandoffEnvelope
+  -> deterministic workflow/policy validation
+  -> immutable artifacts + audit event
+```
+
+The shared orchestration contracts live in `app/contracts.py`. Context assembly
+lives in `app/orchestration/context.py`, legal delegation in
+`app/orchestration/handoff.py`, and invocation-boundary/idempotency handling in
+`app/orchestration/runner.py`.
+
+An agent never receives raw provider credentials. `ContextManifest` contains
+only the minimum data needed for its role, approved artifact references, the
+current workflow state, and the bounded resource configuration. Artifact bodies
+remain behind the artifact service and are resolved only when permitted.
+
 ## Web control room foundation
 
 The application begins with a guided organization -> workforce -> engagement flow and

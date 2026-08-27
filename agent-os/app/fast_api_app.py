@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.meeting_routes import router as meeting_router
+from app.api.workflow_routes import create_orchestration_router
 from app.contracts import (
     ActivatedWorkforce,
     ArtifactApprovalRequest,
@@ -22,6 +22,8 @@ from app.contracts import (
     WorkforceActivationRequest,
     WorkforceTemplate,
 )
+from app.orchestration.context import ContextAssembler
+from app.orchestration.runner import OrchestrationCoordinator
 from app.platform.artifacts import ArtifactError, InMemoryArtifactStore
 from app.platform.organizations import (
     InMemoryOrganizationStore,
@@ -57,11 +59,17 @@ workflows = InMemoryWorkflowEngine()
 artifacts = InMemoryArtifactStore()
 policy = PolicyEngine()
 organizations = InMemoryOrganizationStore()
-
-# The Agent OS Meeting Room. Its dependencies resolve to the singletons above via
-# deferred imports, so a meeting operates on the same workflow and artifact state
-# the console reads - not a second, divergent copy.
-api.include_router(meeting_router)
+contexts = ContextAssembler(
+    workflows=workflows,
+    artifacts=artifacts,
+    organizations=organizations,
+)
+orchestration = OrchestrationCoordinator(
+    workflows=workflows,
+    artifacts=artifacts,
+    contexts=contexts,
+)
+api.include_router(create_orchestration_router(orchestration))
 
 
 @api.get("/health")
@@ -186,6 +194,43 @@ def get_workflow(workflow_id: str) -> WorkflowSnapshot:
 @api.post("/v1/workflows/{workflow_id}/transitions", response_model=TransitionResult)
 def transition_workflow(workflow_id: str, request: TransitionRequest) -> TransitionResult:
     try:
+        if request.action == "approve_specification":
+            approved_sha256 = request.metadata.get("approved_sha256")
+            specifications = [
+                artifact
+                for artifact in artifacts.list(workflow_id)
+                if artifact.logical_name == "SPECIFICATIONS"
+            ]
+            latest_specification = (
+                max(specifications, key=lambda artifact: artifact.version)
+                if specifications
+                else None
+            )
+            matching_approval = (
+                latest_specification
+                if latest_specification is not None
+                and latest_specification.sha256 == approved_sha256
+                and latest_specification.approved
+                and latest_specification.immutable
+                else None
+            )
+            if matching_approval is None:
+                audit = workflows.record_denial(
+                    workflow_id,
+                    request,
+                    reason=(
+                        "Specification transition requires an approved immutable artifact "
+                        "matching metadata.approved_sha256 for the latest specification."
+                    ),
+                    rule_id="gate.specification_artifact_missing",
+                )
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "message": audit.reason,
+                        "audit_event": audit.model_dump(mode="json"),
+                    },
+                )
         return workflows.transition(workflow_id, request)
     except WorkflowNotFound as exc:
         raise HTTPException(status_code=404, detail="Workflow not found.") from exc

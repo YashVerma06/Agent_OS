@@ -30,7 +30,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
-from app.agents.discovery import EngagementContext, build_system_instruction
+from app.agents.discovery_conversation import build_system_instruction
+from app.contracts import ContextManifest
 
 # --------------------------------------------------------------------------- #
 # Configuration                                                                #
@@ -411,7 +412,7 @@ def _translate_live_message(message: Any) -> list[LiveEvent]:
 
 
 def build_live_transport(
-    context: EngagementContext, settings: MeetingSettings | None = None
+    context: ContextManifest, settings: MeetingSettings | None = None
 ) -> tuple[GeminiLiveTransport, str]:
     """Create a transport and the system instruction scoped to one engagement."""
     transport = GeminiLiveTransport(settings)

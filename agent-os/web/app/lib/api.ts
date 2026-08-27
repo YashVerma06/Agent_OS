@@ -6,6 +6,7 @@ import type {
   AuditEvent,
   CompanySize,
   MeetingMode,
+  OrchestrationDecision,
   OrganizationProfile,
   PlatformHealth,
   PolicyDecision,
@@ -107,6 +108,21 @@ export const controlPlane = {
       body: JSON.stringify(input),
     }),
   workflow: (workflowId: string) => request<WorkflowSnapshot>(`/v1/workflows/${workflowId}`),
+  prepareNext: (
+    workflowId: string,
+    idempotencyKey = `prepare-next-${crypto.randomUUID()}`,
+    traceId = crypto.randomUUID(),
+  ) =>
+    request<OrchestrationDecision>(
+      `/v1/workflows/${workflowId}/orchestration/next`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          idempotency_key: idempotencyKey,
+          trace_id: traceId,
+        }),
+      },
+    ),
   createWorkflow: (name: string, clientRequest: string) =>
     request<WorkflowSnapshot>('/v1/workflows', {
       method: 'POST',

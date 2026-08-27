@@ -22,6 +22,18 @@ export type WorkflowState =
 
 export type MeetingMode = 'agent_os_room' | 'transcript_upload' | 'written_brief';
 
+export type AgentRunStatus =
+  | 'READY'
+  | 'COMPLETED'
+  | 'WAITING_FOR_HUMAN'
+  | 'DENIED'
+  | 'FAILED';
+
+export type HandoffGate =
+  | 'NONE'
+  | 'SPECIFICATION_APPROVAL'
+  | 'RELEASE_APPROVAL';
+
 export type CompanySize = '1-10' | '11-50' | '51-200' | '201-1000' | '1000+';
 
 export interface OrganizationProfile {
@@ -138,4 +150,68 @@ export interface PlatformHealth {
   model: string;
   vertex_ai: boolean;
   persistence: string;
+}
+
+export interface ArtifactReference {
+  artifact_id: string;
+  logical_name: string;
+  kind: string;
+  version: number;
+  sha256: string;
+  generated_by: ActorRole;
+  approved: boolean;
+  immutable: boolean;
+  source_artifact_ids: string[];
+}
+
+export interface RepositoryBoundary {
+  repository_url: string;
+  base_branch: string;
+  working_branch_prefix: string;
+}
+
+export interface ClientContext {
+  client_name: string | null;
+  contact_name: string | null;
+  contact_email: string | null;
+  project_name: string;
+  initial_request: string;
+}
+
+export interface ContextManifest {
+  workflow_id: string;
+  tenant_id: string;
+  organization_id: string | null;
+  workforce_id: string | null;
+  workflow_state: WorkflowState;
+  workflow_version: number;
+  target_agent: ActorRole;
+  client: ClientContext;
+  artifact_references: ArtifactReference[];
+  repository_boundary: RepositoryBoundary | null;
+  candidate_capabilities: string[];
+  unresolved_questions: string[];
+  trace_id: string;
+  created_at: string;
+}
+
+export interface AgentRunRequest {
+  workflow_id: string;
+  target_agent: ActorRole;
+  context: ContextManifest;
+  input_artifact_ids: string[];
+  trace_id: string;
+  idempotency_key: string;
+}
+
+export interface OrchestrationDecision {
+  workflow_id: string;
+  workflow_state: WorkflowState;
+  status: AgentRunStatus;
+  target_agent: ActorRole | null;
+  required_gate: HandoffGate;
+  reason: string;
+  run_request: AgentRunRequest | null;
+  trace_id: string;
+  replayed: boolean;
 }

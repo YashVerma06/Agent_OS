@@ -74,6 +74,22 @@ export function SpecificationReview({
           <small>Artifact hash</small>
           <code>{shortHash(handoff.specification_sha256)}</code>
         </div>
+        {/* Read from the shared handoff envelope rather than asserted here, so
+            the panel cannot claim a gate the backend did not actually request. */}
+        <div className="mr-spec-fact">
+          <small>Agent run</small>
+          <strong>{handoff.run.status.replace(/_/g, ' ').toLowerCase()}</strong>
+        </div>
+        <div className="mr-spec-fact">
+          <small>Requested gate</small>
+          <strong>
+            {(handoff.run.handoff?.required_gate ?? 'NONE').replace(/_/g, ' ').toLowerCase()}
+          </strong>
+        </div>
+        <div className="mr-spec-fact">
+          <small>Next agent</small>
+          <strong>{handoff.run.handoff?.requested_next_agent ?? 'none — human decides'}</strong>
+        </div>
       </div>
 
       {/* Lineage is the point: the specification is traceable to the meeting. */}

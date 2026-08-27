@@ -39,6 +39,12 @@ BASE_ALLOW: dict[ActorRole, frozenset[Capability]] = {
 }
 
 
+def candidate_capabilities_for(actor: ActorRole) -> list[Capability]:
+    """Return role-level candidates; contextual policy evaluation is still mandatory."""
+
+    return sorted(BASE_ALLOW.get(actor, frozenset()), key=lambda capability: capability.value)
+
+
 class PolicyEngine:
     """Deny-by-default authorization independent of all agent prompts."""
 

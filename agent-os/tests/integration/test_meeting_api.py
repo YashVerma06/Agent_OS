@@ -18,8 +18,18 @@ from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from app.api import meeting_routes
-from app.contracts import ActorRole, TransitionRequest, WorkflowCreateRequest
+from app.contracts import (
+    ActorRole,
+    AgentRunStatus,
+    HandoffEnvelope,
+    HandoffGate,
+    TransitionRequest,
+    WorkflowCreateRequest,
+)
+from app.orchestration.context import ContextAssembler
+from app.orchestration.handoff import HandoffDenied, validate_handoff
 from app.platform.artifacts import InMemoryArtifactStore
+from app.platform.organizations import InMemoryOrganizationStore
 from app.platform.workflow import InMemoryWorkflowEngine
 from app.services.live_meeting import (
     InMemoryMeetingStore,
@@ -75,6 +85,14 @@ class Harness:
         self.meetings = InMemoryMeetingStore()
         self.transcripts = InMemoryTranscriptStore()
         self.generator = FakeGenerator()
+        self.organizations = InMemoryOrganizationStore()
+        # The real assembler over this harness's own stores, so context
+        # isolation and delegation rules are exercised rather than stubbed.
+        self.contexts = ContextAssembler(
+            workflows=self.workflows,
+            artifacts=self.artifacts,
+            organizations=self.organizations,
+        )
         # Live voice off: the suite must never open a billable session.
         self.settings = MeetingSettings(live_enabled=False, live_model="")
 
@@ -86,6 +104,7 @@ class Harness:
         app.dependency_overrides[meeting_routes.get_transcript_store] = lambda: self.transcripts
         app.dependency_overrides[meeting_routes.get_settings] = lambda: self.settings
         app.dependency_overrides[meeting_routes.get_structured_generator] = lambda: self.generator
+        app.dependency_overrides[meeting_routes.get_context_assembler] = lambda: self.contexts
         self.client = TestClient(app)
 
     def new_workflow(self, *, advance_to_discovery: bool = True) -> str:
@@ -314,9 +333,18 @@ def test_finalize_produces_three_linked_artifacts_and_stops_for_approval(
     handoff = response.json()
 
     assert handoff["workflow_state"] == "SPEC_REVIEW"
-    assert handoff["awaiting"] == "human_specification_approval"
-    assert handoff["requested_transition"] == "submit_specification"
     assert handoff["validation_problems"] == []
+
+    # Completion speaks the shared contract: the run stops for a human, asks for
+    # the specification gate, and names no next agent.
+    run = handoff["run"]
+    assert run["agent"] == ActorRole.DISCOVERY.value
+    assert run["status"] == "WAITING_FOR_HUMAN"
+    envelope = run["handoff"]
+    assert envelope["status"] == "WAITING_FOR_HUMAN"
+    assert envelope["required_gate"] == "SPECIFICATION_APPROVAL"
+    assert envelope["requested_next_agent"] is None
+    assert envelope["from_agent"] == ActorRole.DISCOVERY.value
 
     stored = {item.logical_name: item for item in harness.artifacts.list(workflow_id)}
     assert set(stored) == {"MEETING_TRANSCRIPT", "DISCOVERY_RECORD", "SPECIFICATIONS"}
@@ -333,6 +361,30 @@ def test_finalize_produces_three_linked_artifacts_and_stops_for_approval(
     # Nothing is approved by the agent.
     assert all(not item.approved for item in stored.values())
     assert all(item.generated_by is ActorRole.DISCOVERY for item in stored.values())
+
+
+def test_the_shared_validator_rejects_a_handoff_that_skips_the_gate(
+    harness: Harness,
+) -> None:
+    """The gate is enforced by the shared validator, not by this router.
+
+    If the meeting room ever proposed a next agent instead of stopping, the
+    deterministic check would refuse it - which is the property that makes the
+    room safe to mount alongside every other specialist.
+    """
+    workflow_id = harness.new_workflow()
+    snapshot = harness.workflows.get(workflow_id)
+
+    bypass = HandoffEnvelope(
+        workflow_id=workflow_id,
+        from_agent=ActorRole.DISCOVERY,
+        requested_next_agent=ActorRole.PLANNER,
+        required_gate=HandoffGate.NONE,
+        status=AgentRunStatus.COMPLETED,
+        idempotency_key="bypass-attempt-1",
+    )
+    with pytest.raises(HandoffDenied):
+        validate_handoff(snapshot, bypass)
 
 
 def test_finalize_runs_generation_separately_from_the_conversation(

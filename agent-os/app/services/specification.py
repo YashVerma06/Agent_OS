@@ -19,7 +19,8 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel, Field
 
-from app.agents.discovery import EngagementContext
+from app.agents.discovery_conversation import context_prompt_block
+from app.contracts import ContextManifest
 from app.services.transcript import TranscriptDocument, transcript_as_dialogue
 
 # Section titles, in render order. `validate_specification` checks all of them.
@@ -172,13 +173,13 @@ JSON shape:
 
 def build_discovery_record(
     *,
-    context: EngagementContext,
+    context: ContextManifest,
     transcript: TranscriptDocument,
     generator: StructuredGenerator,
 ) -> DiscoveryRecord:
     dialogue = transcript_as_dialogue(transcript.utterances)
     prompt = (
-        f"{context.as_prompt_block()}\n\n"
+        f"{context_prompt_block(context)}\n\n"
         f"Transcript of the discovery meeting ({transcript.utterance_count} utterances):\n"
         f"{dialogue or '(no spoken utterances were captured)'}"
     )
@@ -202,12 +203,12 @@ def build_discovery_record(
 
 def build_specification_draft(
     *,
-    context: EngagementContext,
+    context: ContextManifest,
     record: DiscoveryRecord,
     generator: StructuredGenerator,
 ) -> SpecificationDraft:
     prompt = (
-        f"{context.as_prompt_block()}\n\n"
+        f"{context_prompt_block(context)}\n\n"
         f"Discovery evidence:\n{record.as_json()}"
     )
     payload = generator.generate_json(
@@ -219,7 +220,7 @@ def build_specification_draft(
 
 
 def render_specification(
-    *, context: EngagementContext, record: DiscoveryRecord, draft: SpecificationDraft
+    *, context: ContextManifest, record: DiscoveryRecord, draft: SpecificationDraft
 ) -> str:
     """Render SPECIFICATIONS.md deterministically.
 
@@ -228,11 +229,11 @@ def render_specification(
     `validate_specification` can then flag.
     """
     draft = draft.with_requirement_ids()
-    client = context.client_name or "Not supplied"
+    client = context.client.client_name or "Not supplied"
     lines: list[str] = [
         "# SPECIFICATIONS.md",
         "",
-        f"- Engagement: {context.project_name}",
+        f"- Engagement: {context.client.project_name}",
         f"- Client: {client}",
         f"- Workflow: `{context.workflow_id}`",
         f"- Tenant: `{context.tenant_id}`",

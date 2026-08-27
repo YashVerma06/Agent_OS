@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from app.agents.discovery import build_engagement_context
+from app.agents.discovery_conversation import build_discovery_context
 from app.contracts import WorkflowSnapshot, WorkflowState
 from app.services.specification import (
     REQUIRED_SECTIONS,
@@ -77,7 +77,7 @@ SPEC_PAYLOAD = {
 
 
 def context_fixture():
-    return build_engagement_context(
+    return build_discovery_context(
         WorkflowSnapshot(
             workflow_id="wf-1",
             tenant_id="tenant-1",

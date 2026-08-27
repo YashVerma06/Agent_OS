@@ -17,9 +17,25 @@ No one pushes directly to `main`.
 | Owner | Suggested branch | Primary responsibility | Five-day deliverable |
 |---|---|---|---|
 | **Arpit — Product & Foundation Lead** | `codex/arpit-foundation` | architecture, contracts, workflow state machine, policy gateway, integration, demo narrative | stable contracts/API; permission denials; integrated golden path; final demo build |
-| **Member 2 — Discovery Experience** | `feature/discovery-experience` | professional web control room, meeting transcript experience, Discovery/Specification Agent, specification approval UI | meeting → transcript → spec → approval flow with polished responsive UI |
-| **Member 3 — Planning & Build Runtime** | `feature/planner-builder` | Planner and Builder agents, repository jail, allowlisted command runner, real branch/patch flow, seeded bug and repair | approved spec → plan → real patch → deterministic repair loop |
-| **Member 4 — Review, Cloud & Reliability** | `feature/reviewer-cloud` | Reviewer Agent, QA/security checks, Cloud Run/Vertex deployment, logging/tracing, demo reset | review fail/pass evidence, Google Cloud proof, repeatable deployment/reset |
+| **Yash — Discovery Experience** | `feature/discovery-experience` | professional web control room, meeting transcript experience, Discovery/Specification Agent, specification approval UI | meeting → transcript → spec → approval flow with polished responsive UI |
+| **Piyush — Planning & Build Runtime** | `feature/planner-builder` | Planner and Builder agents, repository jail, allowlisted command runner, real branch/patch flow, seeded bug and repair | approved spec → plan → real patch → deterministic repair loop |
+| **Kushagra — Review, Cloud & Reliability** | `feature/reviewer-cloud` | Reviewer Agent, QA/security checks, Firestore/Cloud Storage adapters, Cloud Run/Vertex deployment, logging/tracing, demo reset | review fail/pass evidence, persistent Google Cloud proof, repeatable deployment/reset |
+
+## Foundation-owned files
+
+Arpit owns the shared contracts and integration seams. Teammates add specialist
+modules and adapters without editing these files unless a focused contract change
+is agreed first:
+
+- `app/contracts.py`, `app/agent.py`, and `app/fast_api_app.py`;
+- `app/platform/workflow.py`, `app/platform/policy.py`, and
+  `app/platform/artifacts.py`;
+- `app/orchestration/` and package `__init__.py` files;
+- `web/app/lib/api.ts` and `web/app/lib/types.ts`.
+
+Specialist ownership is isolated under `app/agents/`, `app/services/`,
+`app/adapters/`, and separate API router modules. Arpit performs the final router
+and ADK composition wiring on the integration branch.
 
 ## Shared contracts that require Arpit review
 

@@ -62,6 +62,8 @@ Do not add a Gemini API key. The selected path is Vertex AI with ADC locally and
 - `POST /v1/workflows`
 - `GET /v1/workflows/{workflow_id}`
 - `POST /v1/workflows/{workflow_id}/transitions`
+- `POST /v1/workflows/{workflow_id}/orchestration/next`
+- `POST /v1/workflows/{workflow_id}/agent-runs/validate`
 - `GET /v1/workflows/{workflow_id}/audit`
 - `POST /v1/workflows/{workflow_id}/artifacts`
 - `POST /v1/workflows/{workflow_id}/artifacts/{artifact_id}/approve`

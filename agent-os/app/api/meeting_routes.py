@@ -1,11 +1,16 @@
 """Agent OS Meeting Room API.
 
 Exposes an `APIRouter`. It is NOT mounted by `app/fast_api_app.py`, which is a
-shared file this branch deliberately leaves untouched — see the PR for the exact
-two-line change Arpit needs to apply.
+shared file this branch deliberately leaves untouched; Arpit mounts it during
+integration.
 
 Store access goes through FastAPI dependencies so tests can inject fresh
 in-memory engines without importing the process-wide singletons.
+
+Specification completion is expressed with the shared `AgentRunResult` and
+`HandoffEnvelope` contracts and validated by `app.orchestration.handoff`, so the
+meeting room proposes on exactly the same terms as every other specialist and
+has no private route past the approval gate.
 """
 
 from __future__ import annotations
@@ -18,21 +23,27 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
 from pydantic import BaseModel, Field
 
-from app.agents.discovery import (
+from app.agents.discovery_conversation import (
     AI_DISCLOSURE,
     CONVERSATION_INSTRUCTION,
     DISCOVERY_TOPICS,
-    build_engagement_context,
+    build_discovery_context,
     build_system_instruction,
     discovery_boundary_report,
     opening_utterance,
 )
 from app.contracts import (
     ActorRole,
+    AgentRunResult,
+    AgentRunStatus,
     ArtifactCreateRequest,
+    HandoffEnvelope,
+    HandoffGate,
     TransitionRequest,
     WorkflowState,
 )
+from app.orchestration.context import ContextAssembler, ContextBuildError
+from app.orchestration.handoff import HandoffDenied, validate_handoff
 from app.platform.artifacts import ArtifactError
 from app.platform.workflow import TransitionDenied, WorkflowNotFound
 from app.services.live_meeting import (
@@ -103,12 +114,19 @@ def get_structured_generator() -> Any:
     return VertexStructuredGenerator()
 
 
+def get_context_assembler() -> ContextAssembler:
+    from app.fast_api_app import contexts
+
+    return contexts
+
+
 WorkflowEngine = Annotated[Any, Depends(get_workflow_engine)]
 ArtifactStore = Annotated[Any, Depends(get_artifact_store)]
 MeetingStore = Annotated[InMemoryMeetingStore, Depends(get_meeting_store)]
 TranscriptStore = Annotated[InMemoryTranscriptStore, Depends(get_transcript_store)]
 Settings = Annotated[MeetingSettings, Depends(get_settings)]
 Generator = Annotated[Any, Depends(get_structured_generator)]
+Contexts = Annotated[ContextAssembler, Depends(get_context_assembler)]
 
 
 # --------------------------------------------------------------------------- #
@@ -143,17 +161,20 @@ class MeetingView(BaseModel):
 
 
 class SpecificationHandoff(BaseModel):
-    """Structured request for the human specification gate.
+    """Meeting-room view of specification completion.
 
-    Execution stops here. Nothing in this response approves anything: the next
-    transition requires an authenticated human actor.
+    `run` is the shared agent-run contract and carries the actual proposal;
+    everything below it is meeting evidence the room's panels render.
+
+    Execution stops here. Nothing in this response approves anything: the
+    envelope requests the specification approval gate, names no next agent, and
+    reports WAITING_FOR_HUMAN, so the next transition requires an authenticated
+    human actor.
     """
 
-    workflow_id: str
+    run: AgentRunResult
     meeting_id: str
-    requested_transition: str = "submit_specification"
-    workflow_state: str
-    awaiting: str = "human_specification_approval"
+    workflow_state: WorkflowState
     transcript_artifact_id: str
     discovery_record_artifact_id: str
     specification_artifact_id: str
@@ -305,6 +326,7 @@ def finalize_meeting(
     workflows: WorkflowEngine,
     artifacts: ArtifactStore,
     generator: Generator,
+    contexts: Contexts,
 ) -> SpecificationHandoff:
     """Finalize the transcript and run the separate structured generation pass.
 
@@ -335,7 +357,14 @@ def finalize_meeting(
 
     store.end(meeting_id)
     document = transcript_store.finalize(meeting_id, session.workflow_id)
-    context = build_engagement_context(workflow)
+
+    # The shared assembler is the authority on what Discovery may read. It also
+    # re-runs `validate_delegation`, so a workflow that drifted out of a
+    # delegable state fails here rather than after the artifacts are written.
+    try:
+        context = contexts.build(session.workflow_id, ActorRole.DISCOVERY)
+    except (ContextBuildError, HandoffDenied) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     try:
         transcript_artifact = artifacts.create(
@@ -396,6 +425,29 @@ def finalize_meeting(
     except ArtifactError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
 
+    # The agent proposes; the deterministic validator decides. Building the
+    # envelope before the transition means an illegal proposal - one naming a
+    # next agent, or claiming completion instead of waiting - is rejected while
+    # the workflow is still in DISCOVERY.
+    envelope = HandoffEnvelope(
+        workflow_id=session.workflow_id,
+        from_agent=ActorRole.DISCOVERY,
+        requested_next_agent=None,
+        output_artifact_ids=[
+            transcript_artifact.artifact_id,
+            record_artifact.artifact_id,
+            specification_artifact.artifact_id,
+        ],
+        required_gate=HandoffGate.SPECIFICATION_APPROVAL,
+        status=AgentRunStatus.WAITING_FOR_HUMAN,
+        trace_id=context.trace_id,
+        idempotency_key=f"{meeting_id}-specification-handoff",
+    )
+    try:
+        validate_handoff(workflow, envelope)
+    except HandoffDenied as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
     try:
         result = workflows.transition(
             session.workflow_id,
@@ -422,9 +474,21 @@ def finalize_meeting(
         ) from exc
 
     return SpecificationHandoff(
-        workflow_id=session.workflow_id,
+        run=AgentRunResult(
+            workflow_id=session.workflow_id,
+            agent=ActorRole.DISCOVERY,
+            status=AgentRunStatus.WAITING_FOR_HUMAN,
+            output_artifact_ids=list(envelope.output_artifact_ids),
+            summary=(
+                f"Discovery produced SPECIFICATIONS v{specification_artifact.version} from "
+                f"{document.utterance_count} recorded utterances. Awaiting human "
+                f"specification approval."
+            ),
+            handoff=envelope,
+            trace_id=context.trace_id,
+        ),
         meeting_id=meeting_id,
-        workflow_state=result.workflow.state.value,
+        workflow_state=result.workflow.state,
         transcript_artifact_id=transcript_artifact.artifact_id,
         discovery_record_artifact_id=record_artifact.artifact_id,
         specification_artifact_id=specification_artifact.artifact_id,
@@ -502,7 +566,7 @@ async def meeting_live(
     workflow_id = session.workflow_id
 
     try:
-        context = build_engagement_context(workflows.get(workflow_id))
+        context = build_discovery_context(workflows.get(workflow_id))
     except Exception:  # pragma: no cover - control plane unavailable
         await websocket.send_json(
             {"type": "error", "message": "Engagement context unavailable."}
