@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { controlPlane } from '../lib/api';
 import type {
@@ -196,6 +197,19 @@ export function ControlRoom({
     });
   }
 
+  /** Open the client-facing meeting room for this engagement, in a new tab. */
+  function openMeetingRoom() {
+    const params = new URLSearchParams({
+      workflow: workflow.workflow_id,
+      project: workflow.name,
+      approver: workforce.specification_approver_email,
+    });
+    if (workflow.client_name) {
+      params.set('client', workflow.client_name);
+    }
+    window.open(`/meeting?${params.toString()}`, '_blank', 'noopener');
+  }
+
   function createIntakeDraft() {
     void runAction(async () => {
       const record = await controlPlane.createArtifact(workflow.workflow_id, {
@@ -254,7 +268,7 @@ export function ControlRoom({
   return (
     <main className="app-shell" id="overview">
       <aside className="nav-rail" aria-label="Workspace navigation">
-        <div className="brand-mark" aria-label="Agent OS">A<span>O</span></div>
+        <Link className="brand-mark" href="/" aria-label="Agent OS — back to the overview">A<span>O</span></Link>
         <nav>
           <a className="nav-icon active" href="#overview" aria-label="Overview"><Icon name="grid" /></a>
           <a className="nav-icon" href="#workflow" aria-label="Workflow"><Icon name="workflow" /></a>
@@ -334,7 +348,18 @@ export function ControlRoom({
               <h3>{activeAgent?.display_name ?? 'Workforce Manager'}</h3>
               <p>{activeAgent?.purpose ?? 'The registered specialist responsible for this workflow state.'}</p>
               {workflow.state === 'INTAKE' && <button className="primary-button" onClick={startDiscovery} disabled={busy}>{busy ? 'Activating…' : 'Activate discovery'}<Icon name="arrow" /></button>}
-              {workflow.state === 'DISCOVERY' && <button className="primary-button" onClick={createIntakeDraft} disabled={busy}>{busy ? 'Preparing draft…' : 'Draft from intake brief'}<Icon name="arrow" /></button>}
+              {workflow.state === 'DISCOVERY' && (
+                <>
+                  {/* The client-facing room is its own route, so a client
+                      following the link never lands on this control surface. */}
+                  <button className="primary-button" onClick={openMeetingRoom} disabled={busy}>
+                    Open Agent OS Meeting Room<Icon name="arrow" />
+                  </button>
+                  <button className="secondary-button" onClick={createIntakeDraft} disabled={busy}>
+                    {busy ? 'Preparing draft…' : 'Skip: draft from intake brief'}
+                  </button>
+                </>
+              )}
               {workflow.state === 'SPEC_REVIEW' && <div className="approval-box"><div className="approval-title"><Icon name="lock" /><span><strong>Human decision required</strong><small>Configured approver: {workforce.specification_approver_email}</small></span></div><button className="approve-button" onClick={approveSpecification} disabled={busy || !specification}>{busy ? 'Locking artifact…' : 'Approve exact hash'}<Icon name="check" /></button></div>}
               {workflow.state === 'PLANNING' && <div className="handoff-complete"><Icon name="check" /><span><strong>Planner handoff authorized</strong><small>The approved hash is the immutable planning source.</small></span></div>}
               <div className="authority-strip"><span><Icon name="shield" size={15} /> Deterministic authority</span><small>Prompts cannot grant tools, approvals, or workflow transitions.</small></div>
